@@ -32,12 +32,13 @@ class Graph {
     bool plecement_unset = true;
     sf::Color axes_color = sf::Color::White;
     sf::String label = "Graph";
+    bool logscale_x = false, logscale_y = false;
     
     Graph(sf::String label = "Graph", int xsize = 1080, int ysize = 720) : window_xsize(xsize), window_ysize(ysize), label(label) {
         x_k = (dtype)10 / window_xsize;
         y_k = (dtype)10 / window_ysize;
         x_c = y_c = -5;
-        font.loadFromFile("CyrilicOld.TTF");
+        font.loadFromFile("DejaVuSans.ttf");
     }
 
     Graph(const Graph& other) {
@@ -68,6 +69,7 @@ class Graph {
         fontsize = other.fontsize;
         plecement_unset = other.plecement_unset;
         drag = false;
+        logscale_x = other.logscale_x; logscale_y = other.logscale_y;
         return *this;
     }
 
@@ -139,6 +141,16 @@ class Graph {
 
     void reset_plecement(dtype x_min, dtype x_max, dtype y_min, dtype y_max, bool fixed_ratio = false) {
         plecement_unset = false;
+        if(logscale_x) {
+            x_max = x_max <= 0 ? -1 : std::log10(x_max);
+            x_min = x_min <= 0 ? -10 : std::log10(x_min);
+            if(x_min >= x_max) x_min = x_max - 2;
+        }
+        if(logscale_y) {
+            y_max = y_max <= 0 ? -1 : std::log10(y_max);
+            y_min = y_min <= 0 ? -10 : std::log10(y_min);
+            if(y_min >= y_max) y_min = y_min - 2;
+        }
         x_k = (window_xsize - 1) / (x_max - x_min);
         x_c = -x_min * x_k;
         if(x_max == x_min) {
@@ -214,6 +226,10 @@ class Graph {
                             x_c = sf::Mouse::getPosition(*window).x;
                             y_c = window_ysize - 1 - sf::Mouse::getPosition(*window).y;
                         }
+                        if(event.key.code == sf::Keyboard::X)
+                            set_logscale_x(!logscale_x);
+                        if(event.key.code == sf::Keyboard::Y)
+                            set_logscale_y(!logscale_y);
                         break;
                     case sf::Event::MouseButtonPressed:
                         if(event.mouseButton.button == sf::Mouse::Left) {
@@ -253,14 +269,110 @@ class Graph {
         return running;
     }
 
+    void draw_marks_straight(bool is_x, int line) {
+        dtype step = get_step(is_x ? x_k : y_k);
+        for(dtype label = -floor((is_x ? x_c / x_k : y_c / y_k) / step + .5) * step;
+                  label <= (floor((is_x ? (window_xsize - x_c - 1) / x_k : (window_ysize - y_c - 1) / y_k) / step) + .5) * step;
+                  label += step) {
+            if(std::abs(label) < step / 2) label = 0;
+            std::string s = std::to_string(label);
+            s.erase(s.find_last_not_of('0') + 1, std::string::npos);
+            s.erase(s.find_last_not_of('.') + 1, std::string::npos);
+            sf::Text Label(s, font, fontsize);
+            Label.setFillColor(axes_color);
+            if(is_x)
+                Label.setPosition(sf::Vector2f(label * x_k + x_c + text_xshift, window_ysize - 1 - line - text_yshift));
+            else
+                Label.setPosition(sf::Vector2f(line + text_xshift, window_ysize - 1 - label * y_k - y_c - text_yshift));
+            window->draw(Label);
+            if(label == 0 && logscale_x == logscale_y) continue;
+            sf::RectangleShape mark(is_x ? sf::Vector2f(axis_mark_thickness, axis_mark_length) : sf::Vector2f(axis_mark_length, axis_mark_thickness));
+            if(is_x)
+                mark.setPosition(sf::Vector2f(label * x_k + x_c - axis_mark_thickness / 2, window_ysize - line - 1 - axis_mark_length / 2));
+            else
+                mark.setPosition(sf::Vector2f(line - axis_mark_length / 2, window_ysize - 1 - label * y_k - y_c - axis_mark_thickness / 2));
+            mark.setFillColor(axes_color);
+            window->draw(mark);
+        }
+    }
+
+    void draw_marks_log(bool is_x, int line) {
+        dtype step = std::min(get_step((is_x ? x_k : y_k) * std::log(10)), 1.) * 10;
+        for(int order = -floor((is_x ? x_c / x_k : y_c / y_k) + 1.5);
+                order <= floor(is_x ? (window_xsize - x_c - 1) / x_k : (window_ysize - y_c - 1) / y_k) + .5;
+                order += 1) {
+            dtype begin = std::pow(10, order + 1);// - std::pow(10, order) * step * (floor(10 / step - .5) - (step <= 1));
+            dtype st = std::pow(10, order) * step;
+            begin = std::min(begin, floor(std::pow(10, is_x ? (window_xsize - x_c - 1) / x_k : (window_ysize - y_c - 1) / y_k) / st + 40) * st);
+            dtype prevpos = 1e+100;
+            for(dtype label = begin; label > std::max(std::pow(10, order) + st * .5, std::pow(.1, is_x ? x_c / x_k : y_c / y_k) - st * 10); label -= st) {
+                sf::String s;
+                if(0.01 <= label && label < 1000) {
+                    std::string s2 = std::to_string(label);
+                    s2.erase(s2.find_last_not_of('0') + 1, std::string::npos);
+                    s2.erase(s2.find_last_not_of('.') + 1, std::string::npos);
+                    s = s2;
+                } else {
+                    if(label == std::pow(10, order + 1)) {
+                        s = "10" + raise(std::to_string(order + 1));
+                    } else {
+                        std::string s2 = std::to_string(label / std::pow(10, order));
+                        s2.erase(s2.find_last_not_of('0') + 1, std::string::npos);
+                        s2.erase(s2.find_last_not_of('.') + 1, std::string::npos);
+                        s = s2;
+                        s += sf::String((sf::Uint32)8901) + "10" + raise(std::to_string(order));
+                    }
+                }
+                sf::Text Label(s, font, fontsize);
+                Label.setFillColor(axes_color);
+                bool place_text;
+                if(is_x) {
+                    dtype pos = std::log10(label) * x_k + x_c;
+                    place_text = (prevpos - pos >= label_spacing);
+                    Label.setPosition(sf::Vector2f(pos + text_xshift, window_ysize - 1 - line - text_yshift));
+                    if(place_text) prevpos = pos;
+                } else {
+                    dtype pos = std::log10(label) * y_k + y_c;
+                    place_text = (prevpos - pos >= label_spacing);
+                    Label.setPosition(sf::Vector2f(line + text_xshift, window_ysize - 1 - pos - text_yshift));
+                    if(place_text) prevpos = pos;
+                }
+                if(place_text)
+                    window->draw(Label);
+                sf::RectangleShape mark(is_x ? sf::Vector2f(axis_mark_thickness, axis_mark_length) : sf::Vector2f(axis_mark_length, axis_mark_thickness));
+                if(is_x)
+                    mark.setPosition(sf::Vector2f(std::log10(label) * x_k + x_c - axis_mark_thickness / 2, window_ysize - line - 1 - axis_mark_length / 2));
+                else
+                    mark.setPosition(sf::Vector2f(line - axis_mark_length / 2, window_ysize - 1 - std::log10(label) * y_k - y_c - axis_mark_thickness / 2));
+                sf::Color c = axes_color;
+                // if(label != begin)
+                //     c = sf::Color(((int)c.r + (int)background.r) / 2,
+                //                   ((int)c.g + (int)background.g) / 2,
+                //                   ((int)c.b + (int)background.b) / 2);
+                if(!place_text)
+                    c = sf::Color(((int)c.r + (int)background.r) / 2,
+                                  ((int)c.g + (int)background.g) / 2,
+                                  ((int)c.b + (int)background.b) / 2);
+                mark.setFillColor(c);
+                window->draw(mark);
+            }
+        }
+    }
+
     void draw() {
         window->clear(background);
         window->setTitle(label);
         window->setFramerateLimit(fps);
         int xline = floor(y_c + .5);
-        if(xline < 0 || xline >= window_ysize) xline = axis_thickness - axis_thickness / 2 - 1;
+        if(xline < 0 || xline >= window_ysize || logscale_x || logscale_y) xline = axis_thickness - axis_thickness / 2 - 1;
         int yline = floor(x_c + .5);
-        if(yline < 0 || yline >= window_xsize) yline = axis_thickness / 2;
+        if(yline < 0 || yline >= window_xsize || logscale_x || logscale_y) yline = axis_thickness / 2;
+        
+        if(logscale_x) draw_marks_log(true, xline);
+        else draw_marks_straight(true, xline);
+        if(logscale_y) draw_marks_log(false, yline);
+        else draw_marks_straight(false, yline);
+        
         sf::RectangleShape Xline(sf::Vector2f(window_xsize, axis_thickness));
         Xline.setPosition(sf::Vector2f(0, window_ysize - 1 - xline - axis_thickness / 2));
         Xline.setFillColor(axes_color);
@@ -269,49 +381,17 @@ class Graph {
         Yline.setFillColor(axes_color);
         window->draw(Xline);
         window->draw(Yline);
-        dtype xstep = get_step(x_k);
-        dtype ystep = get_step(y_k);
-        for(dtype xlabel = -floor(x_c / x_k / xstep + .5) * xstep; xlabel <= (floor((-x_c + window_xsize - 1)  / x_k / xstep) + .5) * xstep; xlabel += xstep) {
-            if(std::abs(xlabel) < xstep / 2) xlabel = 0;
-            std::string s = std::to_string(xlabel);
-            s.erase(s.find_last_not_of('0') + 1, std::string::npos);
-            s.erase(s.find_last_not_of('.') + 1, std::string::npos);
-            sf::Text Xlabel(s, font, fontsize);
-            Xlabel.setFillColor(axes_color);
-            Xlabel.setPosition(sf::Vector2f(xlabel * x_k + x_c + text_xshift, window_ysize - 1 - xline - text_yshift));
-            window->draw(Xlabel);
-            if(xlabel == 0) continue;
-            sf::RectangleShape mark(sf::Vector2f(axis_mark_thickness, axis_mark_length));
-            mark.setPosition(sf::Vector2f(xlabel * x_k + x_c - axis_mark_thickness / 2, window_ysize - xline - 1 - axis_mark_length / 2));
-            mark.setFillColor(axes_color);
-            window->draw(mark);
-        }
-        for(dtype ylabel = -floor(y_c / y_k / ystep + .5) * ystep; ylabel <= (floor((-y_c + window_ysize - 1)  / y_k / ystep) + .5) * ystep; ylabel += ystep) {
-            if(std::abs(ylabel) < ystep / 2) ylabel = 0;
-            std::string s = std::to_string(ylabel);
-            s.erase(s.find_last_not_of('0') + 1, std::string::npos);
-            s.erase(s.find_last_not_of('.') + 1, std::string::npos);
-            sf::Text Ylabel(s, font, fontsize);
-            Ylabel.setFillColor(axes_color);
-            Ylabel.setPosition(sf::Vector2f(yline + text_xshift, window_ysize - 1 - ylabel * y_k - y_c - text_yshift));
-            window->draw(Ylabel);
-            if(ylabel == 0) continue;
-            sf::RectangleShape mark(sf::Vector2f(axis_mark_length, axis_mark_thickness));
-            mark.setPosition(sf::Vector2f(yline - axis_mark_length / 2, window_ysize - 1 - ylabel * y_k - y_c - axis_mark_thickness / 2));
-            mark.setFillColor(axes_color);
-            window->draw(mark);
-        }
-        dtype y_step = pow(2, floor(log2(200 / y_k)));
+        
         for(int i = 0; i < size(); i ++) {
             std::vector<dtype> x_values = x_valuess[i];
             std::vector<dtype> y_values = y_valuess[i];
             sf::Color color = colors[i];
             for(int j = 1; j < x_values.size(); j ++) {
                 sf::Vertex line[2];
-                dtype x1 = x_c + x_values[j - 1] * x_k + .5;
-                dtype y1 = window_ysize - .5 - (y_c + y_values[j - 1] * y_k);
-                dtype x2 = x_c + x_values[j] * x_k + .5;
-                dtype y2 = window_ysize - .5 - (y_c + y_values[j] * y_k);
+                dtype x1 = x_c + (logscale_x ? std::log10(x_values[j - 1]) : x_values[j - 1]) * x_k + .5;
+                dtype y1 = window_ysize - .5 - (y_c + (logscale_y ? std::log10(y_values[j - 1]) : y_values[j - 1]) * y_k);
+                dtype x2 = x_c + (logscale_x ? std::log10(x_values[j]) : x_values[j]) * x_k + .5;
+                dtype y2 = window_ysize - .5 - (y_c + (logscale_y ? std::log10(y_values[j]) : y_values[j]) * y_k);
                 line[0] = sf::Vertex(sf::Vector2f(x1, y1), color);
                 line[1] = sf::Vertex(sf::Vector2f(x2, y2), color);
                 window->draw(line, 2, sf::Lines);
@@ -327,8 +407,8 @@ class Graph {
                 c.setFillColor(color);
                 c.setRadius(rad);
                 c.setOrigin(rad, rad);
-                dtype x = x_c + x_values[j] * x_k + .5;
-                dtype y = window_ysize - 1 - (y_c + y_values[j] * y_k) + .5;
+                dtype x = x_c + (logscale_x ? std::log10(x_values[j]) : x_values[j]) * x_k + .5;
+                dtype y = window_ysize - 1 - (y_c + (logscale_y ? std::log10(y_values[j]) : y_values[j]) * y_k) + .5;
                 c.setPosition(x, y);
                 window->draw(c);
             }
@@ -369,6 +449,38 @@ class Graph {
         rads.clear();
     }
 
+    void set_logscale_x(bool logx) {
+        if(logscale_x == logx) return;
+        dtype low = -x_c / x_k, high = (window_xsize - x_c - 1) / x_k;
+        if(logx) {
+            if(high <= 0) high = -1;
+            else high = std::log10(high);
+            if(low <= 0) low = std::min(-10., high - 2);
+            else low = std::log10(low);
+        } else {
+            low = std::pow(10, low); high = std::pow(10, high);
+        }
+        x_k = (window_xsize - 1) / (high - low);
+        x_c = -x_k * low;
+        logscale_x = logx;
+    }
+
+    void set_logscale_y(bool logy) {
+        if(logscale_y == logy) return;
+        dtype low = -y_c / y_k, high = (window_ysize - y_c - 1) / y_k;
+        if(logy) {
+            if(high <= 0) high = -1;
+            else high = std::log10(high);
+            if(low <= 0) low = std::min(-10., high - 2);
+            else low = std::log10(low);
+        } else {
+            low = std::pow(10, low); high = std::pow(10, high);
+        }
+        y_k = (window_ysize - 1) / (high - low);
+        y_c = -y_k * low;
+        logscale_y = logy;
+    }
+
     ~Graph() {
         if(window != nullptr)
             delete window;
@@ -390,5 +502,27 @@ class Graph {
             step /= 2;
         }
         return step;
+    }
+
+    sf::String raise(const sf::String &s) {
+        sf::String pows[] = {
+            sf::String((sf::Uint32)8304),
+            sf::String((sf::Uint32)185),
+            sf::String((sf::Uint32)178),
+            sf::String((sf::Uint32)179),
+            sf::String((sf::Uint32)8308),
+            sf::String((sf::Uint32)8309),
+            sf::String((sf::Uint32)8310),
+            sf::String((sf::Uint32)8311),
+            sf::String((sf::Uint32)8312),
+            sf::String((sf::Uint32)8313)
+        };
+        sf::String s2;
+        for(int i = 0; i < s.getSize(); i ++) {
+            if(48 <= s[i] && s[i] < 58) s2 += pows[s[i] - 48];
+            else if(s[i] == 45) s2 += sf::String((sf::Uint32)8315);
+            else s2 += s[i];
+        }
+        return s2;
     }
 };
