@@ -144,12 +144,12 @@ class Graph {
         if(logscale_x) {
             x_max = x_max <= 0 ? -1 : std::log10(x_max);
             x_min = x_min <= 0 ? -10 : std::log10(x_min);
-            if(x_min >= x_max) x_min = x_max - 2;
+            if(x_min > x_max) x_min = x_max - 2;
         }
         if(logscale_y) {
             y_max = y_max <= 0 ? -1 : std::log10(y_max);
             y_min = y_min <= 0 ? -10 : std::log10(y_min);
-            if(y_min >= y_max) y_min = y_min - 2;
+            if(y_min > y_max) y_min = y_min - 2;
         }
         x_k = (window_xsize - 1) / (x_max - x_min);
         x_c = -x_min * x_k;
