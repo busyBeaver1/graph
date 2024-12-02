@@ -29,7 +29,7 @@ class Graph {
     bool drag = false;
     dtype scale_k = 1.1;
     dtype big_scale_k = 4;
-    bool plecement_unset = true;
+    bool placement_unset = true;
     sf::Color axes_color = sf::Color::White;
     sf::String label = "Graph";
     bool logscale_x = false, logscale_y = false;
@@ -67,7 +67,7 @@ class Graph {
         axes_color = other.axes_color;
         label = other.label;
         fontsize = other.fontsize;
-        plecement_unset = other.plecement_unset;
+        placement_unset = other.placement_unset;
         drag = false;
         logscale_x = other.logscale_x; logscale_y = other.logscale_y;
         return *this;
@@ -115,8 +115,8 @@ class Graph {
 
     int size_points() { return rads.size(); }
 
-    void reset_plecement(bool fixed_ratio = false) {
-        plecement_unset = false;
+    void reset_placement(bool fixed_ratio = false) {
+        placement_unset = false;
         if(!size() and !size_points()) {
             x_k = (dtype)10 / window_xsize;
             y_k = (dtype)10 / window_ysize;
@@ -136,11 +136,11 @@ class Graph {
             y_min = std::min(*std::min_element(y_valuess_p[i].begin(), y_valuess_p[i].end()), y_min);
             y_max = std::max(*std::max_element(y_valuess_p[i].begin(), y_valuess_p[i].end()), y_max);
         }
-        reset_plecement(x_min, x_max, y_min, y_max, fixed_ratio);
+        reset_placement(x_min, x_max, y_min, y_max, fixed_ratio);
     }
 
-    void reset_plecement(dtype x_min, dtype x_max, dtype y_min, dtype y_max, bool fixed_ratio = false) {
-        plecement_unset = false;
+    void reset_placement(dtype x_min, dtype x_max, dtype y_min, dtype y_max, bool fixed_ratio = false) {
+        placement_unset = false;
         if(logscale_x) {
             x_max = x_max <= 0 ? -1 : std::log10(x_max);
             x_min = x_min <= 0 ? -10 : std::log10(x_min);
@@ -177,13 +177,13 @@ class Graph {
             delete window;
             window = nullptr;
         }
-        plecement_unset = true;
+        placement_unset = true;
     }
 
     bool show(float duration = 0.0f) {
         if(window == nullptr) {
             _open_window();
-            if(plecement_unset) reset_plecement();
+            if(placement_unset) reset_placement();
         }
         bool running = true;
         sf::Clock clock;
@@ -221,7 +221,7 @@ class Graph {
                             process_snap(sf::Mouse::getPosition(*window).x,
                                          window_ysize - sf::Mouse::getPosition(*window).y);
                         if(event.key.code == sf::Keyboard::Home)
-                            reset_plecement();
+                            reset_placement();
                         if(event.key.code == sf::Keyboard::O) {
                             x_c = sf::Mouse::getPosition(*window).x;
                             y_c = window_ysize - 1 - sf::Mouse::getPosition(*window).y;

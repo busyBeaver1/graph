@@ -97,7 +97,7 @@ int Graph::size_points()
 
 ---
 ```
-void Graph::reset_plecement(bool fixed_ratio = false)
+void Graph::reset_placement(bool fixed_ratio = false)
 ```
 Автоматически сбрасывает расположение системы координат в окне, так, чтобы графики ровно входили по высоте и по ширине. Если задать `fixed_ratio` как `true`, то масштаб по вертикальной и горизонтальной осям будет одинаковым, так что пропорции графика не исказятся. При этом ровно в окно графики войдут только по одной из осей, по ширине или по высоте, а по второй будут находиться в середине.
 
@@ -105,7 +105,7 @@ void Graph::reset_plecement(bool fixed_ratio = false)
 
 ---
 ```
-void Graph::reset_plecement(dtype x_min, dtype x_max, dtype y_min, dtype y_max, bool fixed_ratio = false)
+void Graph::reset_placement(dtype x_min, dtype x_max, dtype y_min, dtype y_max, bool fixed_ratio = false)
 ```
 То же самое, как предыдущая перегрузка метода, но вместо того, чтобы вмещать в окно все графики, метод вмещает в окно заданный прямоугольник [x_min, x_max]x[y_min, y_max]. В том числе работает в режиме логарифмической шкалы.
 
