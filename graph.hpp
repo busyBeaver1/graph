@@ -117,7 +117,7 @@ class Graph {
 
     void reset_placement(bool fixed_ratio = false) {
         placement_unset = false;
-        if(!size() and !size_points()) {
+        if(!size() && !size_points()) {
             x_k = (dtype)10 / window_xsize;
             y_k = (dtype)10 / window_ysize;
             x_c = y_c = -5;
@@ -297,13 +297,13 @@ class Graph {
     }
 
     void draw_marks_log(bool is_x, int line) {
-        dtype step = std::min(get_step((is_x ? x_k : y_k) * std::log(10)), 1.) * 10;
+        dtype step = std::min(get_step((is_x ? x_k : y_k) * std::log(10)), (dtype)1.) * 10;
         for(int order = -floor((is_x ? x_c / x_k : y_c / y_k) + 1.5);
                 order <= floor(is_x ? (window_xsize - x_c - 1) / x_k : (window_ysize - y_c - 1) / y_k) + .5;
                 order += 1) {
             dtype begin = std::pow(10, order + 1);// - std::pow(10, order) * step * (floor(10 / step - .5) - (step <= 1));
             dtype st = std::pow(10, order) * step;
-            begin = std::min(begin, floor(std::pow(10, is_x ? (window_xsize - x_c - 1) / x_k : (window_ysize - y_c - 1) / y_k) / st + 40) * st);
+            begin = std::min(begin, (dtype)floor(std::pow((dtype)10, is_x ? (window_xsize - x_c - 1) / x_k : (window_ysize - y_c - 1) / y_k) / st + 40) * st);
             dtype prevpos = 1e+100;
             for(dtype label = begin; label > std::max(std::pow(10, order) + st * .5, std::pow(.1, is_x ? x_c / x_k : y_c / y_k) - st * 10); label -= st) {
                 sf::String s;
@@ -455,7 +455,7 @@ class Graph {
         if(logx) {
             if(high <= 0) high = -1;
             else high = std::log10(high);
-            if(low <= 0) low = std::min(-10., high - 2);
+            if(low <= 0) low = std::min((dtype)-10., high - 2);
             else low = std::log10(low);
         } else {
             low = std::pow(10, low); high = std::pow(10, high);
@@ -471,7 +471,7 @@ class Graph {
         if(logy) {
             if(high <= 0) high = -1;
             else high = std::log10(high);
-            if(low <= 0) low = std::min(-10., high - 2);
+            if(low <= 0) low = std::min((dtype)-10., high - 2);
             else low = std::log10(low);
         } else {
             low = std::pow(10, low); high = std::pow(10, high);
